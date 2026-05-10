@@ -9,12 +9,13 @@ const dashboards = {
   visitor: true
 } as const;
 
-export default function RoleDashboardPage({
+export default async function RoleDashboardPage({
   params
 }: {
-  params: { role: string };
+  params: Promise<{ role: string }>;
 }) {
-  const role = params.role.toLowerCase() as keyof typeof dashboards;
+  const { role: roleParam } = await params;
+  const role = roleParam.toLowerCase() as keyof typeof dashboards;
 
   if (!dashboards[role]) {
     notFound();
