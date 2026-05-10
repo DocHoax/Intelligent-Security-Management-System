@@ -47,7 +47,7 @@ usersRouter.get("/", async (req, res, next) => {
 
     res.json({
       success: true,
-      data: users.map((user) => ({
+      data: users.map((user: (typeof users)[number]) => ({
         id: user.id,
         fullName: user.fullName,
         email: user.email,
@@ -63,7 +63,7 @@ usersRouter.get("/", async (req, res, next) => {
 
 usersRouter.patch("/:userId/status", async (req, res, next) => {
   try {
-    const { userId } = req.params;
+    const userId = String(req.params.userId);
     const { status } = req.body as Record<string, string>;
 
     if (!status) {

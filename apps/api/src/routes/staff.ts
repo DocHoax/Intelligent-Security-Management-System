@@ -78,7 +78,7 @@ staffRouter.post("/", requireAuth, requireRole("admin"), async (req, res, next) 
 
 staffRouter.patch("/:staffId/shift", requireAuth, requireRole("admin"), async (req, res, next) => {
   try {
-    const { staffId } = req.params;
+    const staffId = String(req.params.staffId);
     const { shift } = req.body as Record<string, string>;
 
     if (!shift) {

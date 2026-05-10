@@ -104,7 +104,7 @@ incidentRouter.post("/", requireAuth, requireRole("admin", "staff", "visitor"), 
 
 incidentRouter.patch("/:incidentId/status", requireAuth, requireRole("admin", "security-personnel"), async (req, res, next) => {
   try {
-    const { incidentId } = req.params;
+    const incidentId = String(req.params.incidentId);
     const { status } = req.body as Record<string, string>;
 
     if (!status) {
@@ -156,7 +156,7 @@ incidentRouter.post(
   incidentEvidenceUpload.single("file"),
   async (req, res, next) => {
     try {
-      const { incidentId } = req.params;
+      const incidentId = String(req.params.incidentId);
 
       if (!req.file) {
         throw new HttpError(400, "Evidence file is required");

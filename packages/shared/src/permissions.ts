@@ -1,4 +1,4 @@
-import { roles } from "./constants";
+import { roles } from "./constants.js";
 
 export type RoleName = (typeof roles)[number];
 

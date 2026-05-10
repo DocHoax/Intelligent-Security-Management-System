@@ -64,7 +64,7 @@ reportRouter.post("/generate", requireAuth, requireRole("admin"), async (req, re
 
 reportRouter.get("/export/:format", requireAuth, (req, res, next) => {
   try {
-    const format = req.params.format.toLowerCase();
+    const format = String(req.params.format).toLowerCase();
 
     if (format !== "pdf" && format !== "excel") {
       throw new HttpError(400, "Export format must be pdf or excel");

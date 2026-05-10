@@ -73,7 +73,7 @@ notificationRouter.post("/broadcast", requireAuth, requireRole("admin", "securit
 });
 
 notificationRouter.patch("/:notificationId/read", requireAuth, (req, res) => {
-  const { notificationId } = req.params;
+  const notificationId = String(req.params.notificationId);
 
   prisma.notification.update({
     where: { id: notificationId },

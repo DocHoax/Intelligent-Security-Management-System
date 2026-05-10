@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { incidentPriorities, incidentTypes, roles, visitorStatuses } from "./constants";
+import { incidentPriorities, incidentTypes, roles, visitorStatuses } from "./constants.js";
 
 export const roleSchema = z.enum(roles);
 
