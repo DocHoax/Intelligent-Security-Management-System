@@ -11,6 +11,7 @@ import { notificationRouter } from "./routes/notifications.js";
 import { reportRouter } from "./routes/reports.js";
 import { staffRouter } from "./routes/staff.js";
 import { visitorRouter } from "./routes/visitors.js";
+import { csrfProtection } from "./middleware/csrf.js";
 import { errorHandler, notFound } from "./middleware/error-handler.js";
 import { env } from "./lib/env.js";
 
@@ -35,6 +36,7 @@ app.use(
     legacyHeaders: false
   })
 );
+app.use(csrfProtection);
 
 app.get("/api/v1", (_req, res) => {
   res.json({
