@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { prisma } from "../lib/prisma.js";
 import { visitorCheckInSchema } from "@isms/shared";
 import { emitSecurityEvent } from "../lib/socket.js";
+import { logAudit } from "../lib/audit.js";
 
 const visitors = [
   {
@@ -57,6 +58,17 @@ visitorRouter.post("/check-in", requireAuth, requireRole("admin", "security-pers
       hostName: createdVisitor.hostName,
       purpose: createdVisitor.purpose
     });
+
+    await logAudit({
+      actorId: req.user?.id,
+      action: "check_in",
+      entityType: "Visitor",
+      entityId: createdVisitor.id,
+      metadata: {
+        hostName: createdVisitor.hostName,
+        purpose: createdVisitor.purpose
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -81,6 +93,13 @@ visitorRouter.post("/check-out", requireAuth, requireRole("admin", "security-per
     emitSecurityEvent("visitor:checked-out", {
       visitorId,
       status: "checked-out"
+    });
+
+    await logAudit({
+      actorId: req.user?.id,
+      action: "check_out",
+      entityType: "Visitor",
+      entityId: visitorId
     });
 
     res.json({

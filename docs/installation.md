@@ -19,6 +19,7 @@
 npm install
 npm run db:generate
 npm run db:push
+npm run db:seed
 npm run dev
 ```
 
@@ -26,3 +27,4 @@ npm run dev
 
 - The landing page and auth screens are ready for UI review even before the database is populated.
 - The API currently returns realistic scaffold responses so the project can be demonstrated early in development.
+- The seeded demo account uses `admin@isms.local` with the password `Admin@1234`.

@@ -11,8 +11,10 @@
     "dev": "concurrently -n web,api \"npm run dev:web\" \"npm run dev:api\"",
     "build": "npm run build --workspaces",
     "lint": "npm run lint --workspaces",
+    "test": "npm --workspace apps/api run test",
     "db:generate": "npm --workspace apps/api run db:generate",
-    "db:push": "npm --workspace apps/api run db:push"
+    "db:push": "npm --workspace apps/api run db:push",
+    "db:seed": "npm --workspace apps/api run db:seed"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

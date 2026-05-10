@@ -11,6 +11,7 @@
 - `POST /auth/forgot-password` - request OTP reset flow.
 - `POST /auth/verify-otp` - verify an OTP and continue reset.
 - `GET /auth/me` - return the current authenticated user.
+- `PATCH /auth/me` - update the current profile.
 - `POST /auth/logout` - end the current session.
 
 ## Incidents
@@ -18,6 +19,7 @@
 - `GET /incidents` - list incidents with search and filter support.
 - `POST /incidents` - create a new incident report.
 - `PATCH /incidents/:incidentId/status` - update incident status.
+- `POST /incidents/:incidentId/evidence` - upload validated incident evidence.
 
 ## Visitors
 
@@ -37,6 +39,11 @@
 - `GET /reports/summary` - list saved reports.
 - `POST /reports/generate` - generate a report.
 - `GET /reports/export/:format` - export as PDF or Excel.
+
+## Users
+
+- `GET /users` - list users for admin management.
+- `PATCH /users/:userId/status` - update a user account status.
 
 ## Staff
 

@@ -3,6 +3,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { getStoredAccessToken } from "@/lib/session";
+import { AnalyticsCharts } from "./analytics-charts";
 
 type DashboardRole = "admin" | "security-personnel" | "staff" | "visitor";
 
@@ -27,6 +28,7 @@ type DashboardPayload = {
   notifications: Array<{ id: string; title: string; message: string; read: boolean }>;
   visitors: Array<{ id: string; fullName: string; host: string; status: string; purpose: string }>;
   staff: Array<{ id: string; fullName: string; rank: string; shift: string; status: string }>;
+  users: Array<{ id: string; fullName: string; email: string; phoneNumber?: string | null; role: string; status: string }>;
 };
 
 const defaultPayload: DashboardPayload = {
@@ -40,7 +42,8 @@ const defaultPayload: DashboardPayload = {
   incidents: [],
   notifications: [],
   visitors: [],
-  staff: []
+  staff: [],
+  users: []
 };
 
 export function DashboardClient({ role }: { role: DashboardRole }) {
@@ -50,6 +53,9 @@ export function DashboardClient({ role }: { role: DashboardRole }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
 
   const deferredSearch = useDeferredValue(search);
   const pageSize = 4;
@@ -88,8 +94,20 @@ export function DashboardClient({ role }: { role: DashboardRole }) {
           incidents: incidentsResponse.data ?? [],
           notifications: notificationsResponse.data ?? [],
           visitors: visitorsResponse.data ?? [],
-          staff: staffResponse.data ?? []
+          staff: staffResponse.data ?? [],
+          users: []
         });
+
+        if (role === "admin") {
+          const usersResponse = await apiRequest<DashboardPayload["users"]>("/users", {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          setPayload((current) => ({
+            ...current,
+            users: usersResponse.data ?? []
+          }));
+        }
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Failed to load dashboard");
       } finally {
@@ -119,6 +137,61 @@ export function DashboardClient({ role }: { role: DashboardRole }) {
   useEffect(() => {
     setPage(1);
   }, [deferredSearch, statusFilter]);
+
+  async function handleExport(format: "pdf" | "excel") {
+    const token = getStoredAccessToken();
+
+    if (!token) {
+      setNotice("Sign in again to export reports.");
+      return;
+    }
+
+    setExporting(format);
+    setNotice(null);
+
+    try {
+      const response = await apiRequest<{ downloadUrl: string }>(`/reports/export/${format}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setNotice(response.message ?? `${format.toUpperCase()} export ready`);
+    } catch (requestError) {
+      setNotice(requestError instanceof Error ? requestError.message : "Export failed");
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  async function handleUserStatusUpdate(userId: string, status: string) {
+    const token = getStoredAccessToken();
+
+    if (!token) {
+      setNotice("Sign in again to update users.");
+      return;
+    }
+
+    setUpdatingUserId(userId);
+    setNotice(null);
+
+    try {
+      await apiRequest(`/users/${userId}/status`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status })
+      });
+
+      setPayload((current) => ({
+        ...current,
+        users: current.users.map((user) => (user.id === userId ? { ...user, status } : user))
+      }));
+
+      setNotice("User status updated");
+    } catch (requestError) {
+      setNotice(requestError instanceof Error ? requestError.message : "Failed to update user status");
+    } finally {
+      setUpdatingUserId(null);
+    }
+  }
 
   const summaryCards =
     role === "admin"
@@ -163,6 +236,12 @@ export function DashboardClient({ role }: { role: DashboardRole }) {
         </div>
       ) : null}
 
+      {notice ? (
+        <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)] shadow-panel">
+          {notice}
+        </div>
+      ) : null}
+
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map(([label, value]) => (
           <article key={label} className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-panel backdrop-blur-xl">
@@ -171,6 +250,56 @@ export function DashboardClient({ role }: { role: DashboardRole }) {
           </article>
         ))}
       </section>
+
+      <AnalyticsCharts analytics={payload.analytics} />
+
+      {role === "admin" ? (
+        <section className="rounded-[1.75rem] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-panel backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="font-display text-2xl font-semibold">User Management</h2>
+              <p className="mt-2 text-sm text-[var(--muted)]">Review accounts, roles, and active status.</p>
+            </div>
+            <span className="rounded-full border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">Admin only</span>
+          </div>
+
+          <div className="mt-6 overflow-hidden rounded-[1.25rem] border border-[var(--border)]">
+            <table className="min-w-full divide-y divide-[var(--border)] text-left text-sm">
+              <thead className="bg-[rgba(148,163,184,0.08)] text-[var(--muted)]">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">User</th>
+                  <th className="px-4 py-3 font-semibold">Email</th>
+                  <th className="px-4 py-3 font-semibold">Role</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {payload.users.map((user) => (
+                  <tr key={user.id} className="bg-[var(--surface-strong)]">
+                    <td className="px-4 py-3 font-semibold">{user.fullName}</td>
+                    <td className="px-4 py-3 text-[var(--muted)]">{user.email}</td>
+                    <td className="px-4 py-3 capitalize text-[var(--muted)]">{user.role.replace(/-/g, " ")}</td>
+                    <td className="px-4 py-3">
+                      <select
+                        value={user.status}
+                        onChange={(event) => handleUserStatusUpdate(user.id, event.target.value)}
+                        disabled={updatingUserId === user.id}
+                        className="w-full rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs capitalize outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {Array.from(new Set([user.status, "active", "inactive", "suspended"])).map((status) => (
+                          <option key={status} value={status} className="capitalize">
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <article className="rounded-[1.75rem] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-panel backdrop-blur-xl">
@@ -265,6 +394,25 @@ export function DashboardClient({ role }: { role: DashboardRole }) {
               {payload.notifications.slice(0, 4).map((notification) => (
                 <p key={notification.id}>• {notification.title}</p>
               ))}
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => handleExport("pdf")}
+                className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white shadow-soft transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70"
+                disabled={exporting !== null}
+              >
+                {exporting === "pdf" ? "Exporting PDF..." : "Export PDF"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExport("excel")}
+                className="rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-70"
+                disabled={exporting !== null}
+              >
+                {exporting === "excel" ? "Exporting Excel..." : "Export Excel"}
+              </button>
             </div>
           </article>
 

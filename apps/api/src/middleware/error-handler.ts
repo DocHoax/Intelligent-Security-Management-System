@@ -6,7 +6,12 @@ export const notFound: RequestHandler = (_req, _res, next) => {
 };
 
 export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
-  const statusCode = error instanceof HttpError ? error.statusCode : 500;
+  const statusCode =
+    error instanceof HttpError
+      ? error.statusCode
+      : error instanceof Error && error.name === "MulterError"
+        ? 400
+        : 500;
   const message = error instanceof Error ? error.message : "Internal server error";
 
   res.status(statusCode).json({

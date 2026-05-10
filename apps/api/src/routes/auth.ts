@@ -7,6 +7,7 @@ import { signAccessToken, signRefreshToken } from "../lib/jwt.js";
 import { toRoleEnum, toRoleSlug } from "../lib/roles.js";
 import { forgotPasswordSchema, loginSchema, registerSchema, verifyOtpSchema } from "@isms/shared";
 import { roles } from "@isms/shared";
+import { logAudit } from "../lib/audit.js";
 
 export const authRouter = Router();
 
@@ -71,6 +72,17 @@ authRouter.post("/register", async (req, res, next) => {
         refreshToken: signRefreshToken(tokenPayload)
       }
     });
+
+    await logAudit({
+      actorId: createdUser.id,
+      action: "create",
+      entityType: "User",
+      entityId: createdUser.id,
+      metadata: {
+        role: userRole,
+        emailVerified: Boolean(createdUser.emailVerifiedAt)
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -125,6 +137,17 @@ authRouter.post("/login", async (req, res, next) => {
         rememberMe: parsed.rememberMe
       }
     });
+
+    await logAudit({
+      actorId: user.id,
+      action: "login",
+      entityType: "Session",
+      entityId: user.id,
+      metadata: {
+        role: userRole,
+        rememberMe: parsed.rememberMe
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -165,9 +188,58 @@ authRouter.get("/me", requireAuth, (req, res) => {
   });
 });
 
-authRouter.post("/logout", requireAuth, (_req, res) => {
+authRouter.patch("/me", requireAuth, async (req, res, next) => {
+  try {
+    const { fullName, phoneNumber } = req.body as Record<string, string>;
+
+    if (!fullName && !phoneNumber) {
+      throw new HttpError(400, "At least one profile field is required");
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: {
+        ...(fullName ? { fullName } : {}),
+        ...(phoneNumber ? { phoneNumber } : {})
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true
+      }
+    });
+
+    await logAudit({
+      actorId: req.user!.id,
+      action: "update",
+      entityType: "User",
+      entityId: req.user!.id,
+      metadata: {
+        updatedFields: Object.keys({ ...(fullName ? { fullName } : {}), ...(phoneNumber ? { phoneNumber } : {}) })
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Profile updated",
+      data: updatedUser
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post("/logout", requireAuth, async (req, res) => {
   res.json({
     success: true,
     message: "Logged out successfully"
+  });
+
+  await logAudit({
+    actorId: req.user?.id,
+    action: "logout",
+    entityType: "Session",
+    entityId: req.user?.id ?? "unknown"
   });
 });

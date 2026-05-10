@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { prisma } from "../lib/prisma.js";
 import { reportGenerateSchema } from "@isms/shared";
 import { emitSecurityEvent } from "../lib/socket.js";
+import { logAudit } from "../lib/audit.js";
 
 export const reportRouter = Router();
 
@@ -45,6 +46,17 @@ reportRouter.post("/generate", requireAuth, requireRole("admin"), async (req, re
       format: parsed.format,
       generatedBy: req.user?.fullName
     });
+
+    await logAudit({
+      actorId: req.user?.id,
+      action: "export",
+      entityType: "Report",
+      entityId: createdReport.id,
+      metadata: {
+        title: parsed.title,
+        format: parsed.format
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -63,6 +75,16 @@ reportRouter.get("/export/:format", requireAuth, (req, res, next) => {
       message: `Export prepared in ${format.toUpperCase()} format`,
       data: {
         downloadUrl: `/exports/sample.${format}`
+      }
+    });
+
+    void logAudit({
+      actorId: req.user?.id,
+      action: "export",
+      entityType: "Report",
+      entityId: format,
+      metadata: {
+        format
       }
     });
   } catch (error) {

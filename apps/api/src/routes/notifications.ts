@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { prisma } from "../lib/prisma.js";
 import { broadcastNotificationSchema } from "@isms/shared";
 import { emitSecurityEvent } from "../lib/socket.js";
+import { logAudit } from "../lib/audit.js";
 
 const notifications = [
   {
@@ -55,6 +56,17 @@ notificationRouter.post("/broadcast", requireAuth, requireRole("admin", "securit
       title: parsed.title,
       message: parsed.message
     });
+
+    await logAudit({
+      actorId: req.user?.id,
+      action: "create",
+      entityType: "Notification",
+      entityId: createdNotification.id,
+      metadata: {
+        channel: "web-socket",
+        title: parsed.title
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -67,6 +79,16 @@ notificationRouter.patch("/:notificationId/read", requireAuth, (req, res) => {
     where: { id: notificationId },
     data: { readAt: new Date() }
   }).catch(() => undefined);
+
+  void logAudit({
+    actorId: req.user?.id,
+    action: "update",
+    entityType: "Notification",
+    entityId: notificationId,
+    metadata: {
+      read: true
+    }
+  });
 
   res.json({
     success: true,

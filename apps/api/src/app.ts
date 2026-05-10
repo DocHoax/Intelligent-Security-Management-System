@@ -11,6 +11,7 @@ import { notificationRouter } from "./routes/notifications.js";
 import { reportRouter } from "./routes/reports.js";
 import { staffRouter } from "./routes/staff.js";
 import { visitorRouter } from "./routes/visitors.js";
+import { usersRouter } from "./routes/users.js";
 import { csrfProtection } from "./middleware/csrf.js";
 import { errorHandler, notFound } from "./middleware/error-handler.js";
 import { env } from "./lib/env.js";
@@ -63,6 +64,7 @@ app.use("/api/v1/visitors", visitorRouter);
 app.use("/api/v1/analytics", analyticsRouter);
 app.use("/api/v1/reports", reportRouter);
 app.use("/api/v1/staff", staffRouter);
+app.use("/api/v1/users", usersRouter);
 
 app.use(notFound);
 app.use(errorHandler);

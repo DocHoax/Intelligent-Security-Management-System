@@ -4,6 +4,8 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { prisma } from "../lib/prisma.js";
 import { incidentCreateSchema } from "@isms/shared";
 import { emitSecurityEvent } from "../lib/socket.js";
+import { logAudit } from "../lib/audit.js";
+import { buildEvidenceUrl, incidentEvidenceUpload } from "../lib/uploads.js";
 
 const incidents = [
   {
@@ -83,6 +85,18 @@ incidentRouter.post("/", requireAuth, requireRole("admin", "staff", "visitor"), 
       reporterId: req.user?.id,
       reporterName: req.user?.fullName
     });
+
+    await logAudit({
+      actorId: req.user?.id,
+      action: "create",
+      entityType: "Incident",
+      entityId: createdIncident.id,
+      metadata: {
+        type: parsed.type,
+        priority: parsed.priority,
+        location: parsed.location
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -111,6 +125,16 @@ incidentRouter.patch("/:incidentId/status", requireAuth, requireRole("admin", "s
       updatedBy: req.user?.fullName ?? "System"
     });
 
+    await logAudit({
+      actorId: req.user?.id,
+      action: "update",
+      entityType: "Incident",
+      entityId: incidentId,
+      metadata: {
+        status
+      }
+    });
+
     res.json({
       success: true,
       message: "Incident status updated",
@@ -124,3 +148,57 @@ incidentRouter.patch("/:incidentId/status", requireAuth, requireRole("admin", "s
     next(error);
   }
 });
+
+incidentRouter.post(
+  "/:incidentId/evidence",
+  requireAuth,
+  requireRole("admin", "security-personnel", "staff"),
+  incidentEvidenceUpload.single("file"),
+  async (req, res, next) => {
+    try {
+      const { incidentId } = req.params;
+
+      if (!req.file) {
+        throw new HttpError(400, "Evidence file is required");
+      }
+
+      const evidenceType = req.file.mimetype.startsWith("image/")
+        ? "image"
+        : req.file.mimetype.startsWith("video/")
+          ? "video"
+          : "document";
+      const attachmentUrl = buildEvidenceUrl(req.file.originalname);
+
+      await prisma.incident.update({
+        where: { id: incidentId },
+        data: {
+          attachmentUrl,
+          evidenceType: evidenceType.toUpperCase() as never
+        }
+      });
+
+      await logAudit({
+        actorId: req.user?.id,
+        action: "update",
+        entityType: "Incident",
+        entityId: incidentId,
+        metadata: {
+          attachmentUrl,
+          evidenceType
+        }
+      });
+
+      res.status(201).json({
+        success: true,
+        message: "Incident evidence uploaded",
+        data: {
+          incidentId,
+          attachmentUrl,
+          evidenceType
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);

@@ -13,3 +13,8 @@ This repository is being scaffolded as a full-stack safety and security manageme
 ## Current Status
 
 The first scaffold includes the web application shell, a responsive landing page, auth entry points, and dashboard routing. The API and database layers will follow in the next step.
+
+## Demo Seed
+
+- Admin login: `admin@isms.local`
+- Password: `Admin@1234`

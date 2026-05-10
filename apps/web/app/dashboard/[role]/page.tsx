@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { DashboardClient } from "@/components/dashboard-client";
 
 const dashboards = {
@@ -33,6 +34,9 @@ export default function RoleDashboardPage({
             </div>
 
             <div className="flex flex-wrap gap-3 text-sm">
+              <Link href="/profile" className="rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-2 font-semibold">
+                Profile
+              </Link>
               <button className="rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-2 font-semibold">Search</button>
               <button className="rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-2 font-semibold">Filter</button>
               <button className="rounded-full bg-[var(--accent)] px-4 py-2 font-semibold text-white">Export Report</button>

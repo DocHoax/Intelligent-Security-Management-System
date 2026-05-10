@@ -3,6 +3,7 @@ import { HttpError } from "../lib/http-errors.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { prisma } from "../lib/prisma.js";
 import { emitSecurityEvent } from "../lib/socket.js";
+import { logAudit } from "../lib/audit.js";
 
 const staffMembers = [
   {
@@ -58,6 +59,18 @@ staffRouter.post("/", requireAuth, requireRole("admin"), async (req, res, next) 
       rank,
       shift
     });
+
+    await logAudit({
+      actorId: req.user?.id,
+      action: "create",
+      entityType: "SecurityStaff",
+      entityId: createdStaff.id,
+      metadata: {
+        fullName,
+        rank,
+        shift
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -89,6 +102,16 @@ staffRouter.patch("/:staffId/shift", requireAuth, requireRole("admin"), async (r
     emitSecurityEvent("staff:shift-updated", {
       staffId,
       shift
+    });
+
+    await logAudit({
+      actorId: req.user?.id,
+      action: "update",
+      entityType: "SecurityStaff",
+      entityId: staffId,
+      metadata: {
+        shift
+      }
     });
   } catch (error) {
     next(error);
