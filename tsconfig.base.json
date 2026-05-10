@@ -13,7 +13,6 @@
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "baseUrl": ".",
-    "ignoreDeprecations": "5.0",
     "paths": {
       "@isms/shared": [
         "packages/shared/src/index.ts"

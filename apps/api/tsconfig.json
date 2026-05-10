@@ -6,7 +6,6 @@
     "outDir": "dist",
     "rootDir": "../..",
     "noEmit": false,
-    "ignoreDeprecations": "5.0",
     "types": [
       "node"
     ]
