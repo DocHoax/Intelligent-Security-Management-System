@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma.js";
 
 type AuditAction =
@@ -17,7 +18,7 @@ export async function logAudit(input: {
   action: AuditAction;
   entityType: string;
   entityId: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Prisma.InputJsonValue;
   ipAddress?: string;
 }) {
   try {

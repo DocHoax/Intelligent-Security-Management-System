@@ -117,7 +117,7 @@ model User {
   messagesReceived  Message[]    @relation("MessageRecipient")
   reportsGenerated  Report[]
   auditLogs         AuditLog[]
-  securityStaff     SecurityStaff?
+  securityStaff     SecurityStaff? @relation("UserSecurityStaff")
   visitorRecords    Visitor[]    @relation("VisitorHost")
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
@@ -191,7 +191,7 @@ model Visitor {
 model SecurityStaff {
   id              String   @id @default(cuid())
   userId          String?  @unique
-  user            User?    @relation(fields: [userId], references: [id])
+  user            User?    @relation("UserSecurityStaff", fields: [userId], references: [id])
   fullName        String
   rank            String
   phoneNumber     String?
