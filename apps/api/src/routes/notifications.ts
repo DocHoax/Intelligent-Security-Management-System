@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { HttpError } from "../lib/http-errors.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
+import { prisma } from "../lib/prisma.js";
+import { broadcastNotificationSchema } from "@isms/shared";
+import { emitSecurityEvent } from "../lib/socket.js";
 
 const notifications = [
   {
@@ -25,23 +28,32 @@ notificationRouter.get("/", requireAuth, (_req, res) => {
   res.json({ success: true, data: notifications });
 });
 
-notificationRouter.post("/broadcast", requireAuth, requireRole("admin", "security-personnel"), (req, res, next) => {
+notificationRouter.post("/broadcast", requireAuth, requireRole("admin", "security-personnel"), async (req, res, next) => {
   try {
-    const { title, message } = req.body as Record<string, string>;
+    const parsed = broadcastNotificationSchema.parse(req.body);
 
-    if (!title || !message) {
-      throw new HttpError(400, "Title and message are required");
-    }
+    const createdNotification = await prisma.notification.create({
+      data: {
+        title: parsed.title,
+        message: parsed.message,
+        channel: "WEB_SOCKET" as never,
+        userId: null
+      }
+    });
 
     res.status(201).json({
       success: true,
       message: "Notification broadcast queued",
       data: {
-        id: `not_${Date.now()}`,
-        title,
-        message,
+        ...createdNotification,
         channel: "web-socket"
       }
+    });
+
+    emitSecurityEvent("notification:broadcast", {
+      notificationId: createdNotification.id,
+      title: parsed.title,
+      message: parsed.message
     });
   } catch (error) {
     next(error);
@@ -50,6 +62,11 @@ notificationRouter.post("/broadcast", requireAuth, requireRole("admin", "securit
 
 notificationRouter.patch("/:notificationId/read", requireAuth, (req, res) => {
   const { notificationId } = req.params;
+
+  prisma.notification.update({
+    where: { id: notificationId },
+    data: { readAt: new Date() }
+  }).catch(() => undefined);
 
   res.json({
     success: true,

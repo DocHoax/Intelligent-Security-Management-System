@@ -1,36 +1,74 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../lib/http-errors.js";
+import { prisma } from "../lib/prisma.js";
+import { hashPassword, comparePassword } from "../lib/password.js";
+import { signAccessToken, signRefreshToken } from "../lib/jwt.js";
+import { toRoleEnum, toRoleSlug } from "../lib/roles.js";
+import { forgotPasswordSchema, loginSchema, registerSchema, verifyOtpSchema } from "@isms/shared";
+import { roles } from "@isms/shared";
 
 export const authRouter = Router();
 
 authRouter.get("/roles", (_req, res) => {
   res.json({
     success: true,
-    data: ["admin", "security-personnel", "staff", "visitor"]
+    data: roles
   });
 });
 
-authRouter.post("/register", (req, res, next) => {
+authRouter.post("/register", async (req, res, next) => {
   try {
-    const { fullName, email, phoneNumber, role, password } = req.body as Record<string, string>;
+    const parsed = registerSchema.parse(req.body);
+    const hashedPassword = await hashPassword(parsed.password);
+    const roleRecord = await prisma.role.upsert({
+      where: { name: toRoleEnum(parsed.role) as never },
+      update: {},
+      create: {
+        name: toRoleEnum(parsed.role) as never,
+        description: `${parsed.role} role`
+      }
+    });
 
-    if (!fullName || !email || !role || !password) {
-      throw new HttpError(400, "Missing registration fields");
-    }
+    const createdUser = await prisma.user.create({
+      data: {
+        fullName: parsed.fullName,
+        email: parsed.email.toLowerCase(),
+        phoneNumber: parsed.phoneNumber,
+        passwordHash: hashedPassword,
+        roleId: roleRecord.id
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true,
+        emailVerifiedAt: true,
+        role: {
+          select: { name: true }
+        }
+      }
+    });
+
+    const userRole = toRoleSlug(createdUser.role.name);
+    const tokenPayload = {
+      sub: createdUser.id,
+      role: userRole,
+      email: createdUser.email,
+      fullName: createdUser.fullName
+    };
 
     res.status(201).json({
       success: true,
-      message: "Registration accepted",
+      message: "Registration completed",
       data: {
         user: {
-          id: "usr_demo_001",
-          fullName,
-          email,
-          phoneNumber: phoneNumber ?? "",
-          role,
-          emailVerificationStatus: "pending"
-        }
+          ...createdUser,
+          role: userRole,
+          emailVerificationStatus: createdUser.emailVerifiedAt ? "verified" : "pending"
+        },
+        accessToken: signAccessToken(tokenPayload),
+        refreshToken: signRefreshToken(tokenPayload)
       }
     });
   } catch (error) {
@@ -38,26 +76,53 @@ authRouter.post("/register", (req, res, next) => {
   }
 });
 
-authRouter.post("/login", (req, res, next) => {
+authRouter.post("/login", async (req, res, next) => {
   try {
-    const { email, password } = req.body as Record<string, string>;
+    const parsed = loginSchema.parse(req.body);
+    const user = await prisma.user.findUnique({
+      where: { email: parsed.email.toLowerCase() },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        passwordHash: true,
+        role: {
+          select: { name: true }
+        }
+      }
+    });
 
-    if (!email || !password) {
-      throw new HttpError(400, "Email and password are required");
+    if (!user) {
+      throw new HttpError(401, "Invalid email or password");
     }
+
+    const passwordMatches = await comparePassword(parsed.password, user.passwordHash);
+
+    if (!passwordMatches) {
+      throw new HttpError(401, "Invalid email or password");
+    }
+
+    const userRole = toRoleSlug(user.role.name);
+    const tokenPayload = {
+      sub: user.id,
+      role: userRole,
+      email: user.email,
+      fullName: user.fullName
+    };
 
     res.json({
       success: true,
       message: "Login successful",
       data: {
-        accessToken: "demo-admin:user-001",
-        refreshToken: "demo-refresh-token",
+        accessToken: signAccessToken(tokenPayload),
+        refreshToken: signRefreshToken(tokenPayload),
         user: {
-          id: "user-001",
-          fullName: "Demo Admin",
-          email,
-          role: "admin"
-        }
+          id: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          role: userRole
+        },
+        rememberMe: parsed.rememberMe
       }
     });
   } catch (error) {
@@ -67,16 +132,12 @@ authRouter.post("/login", (req, res, next) => {
 
 authRouter.post("/forgot-password", (req, res, next) => {
   try {
-    const { email } = req.body as Record<string, string>;
-
-    if (!email) {
-      throw new HttpError(400, "Email is required");
-    }
+    const { email } = forgotPasswordSchema.parse(req.body);
 
     res.json({
       success: true,
       message: "OTP reset link sent",
-      data: { email }
+      data: { email: email.toLowerCase() }
     });
   } catch (error) {
     next(error);
@@ -85,16 +146,12 @@ authRouter.post("/forgot-password", (req, res, next) => {
 
 authRouter.post("/verify-otp", (req, res, next) => {
   try {
-    const { email, otp } = req.body as Record<string, string>;
-
-    if (!email || !otp) {
-      throw new HttpError(400, "Email and OTP are required");
-    }
+    const { email, otp, newPassword } = verifyOtpSchema.parse(req.body);
 
     res.json({
       success: true,
       message: "OTP verified",
-      data: { email, verified: true }
+      data: { email: email.toLowerCase(), verified: true, nextStep: "password-reset", newPasswordLength: newPassword.length, otpLength: otp.length }
     });
   } catch (error) {
     next(error);

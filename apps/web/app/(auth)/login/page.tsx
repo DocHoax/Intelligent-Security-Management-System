@@ -1,6 +1,52 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { apiRequest } from "@/lib/api";
+import { getDashboardPath, persistAuthSession } from "@/lib/session";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setMessage(null);
+
+    const formData = new FormData(event.currentTarget);
+    const payload = {
+      email: String(formData.get("email") ?? ""),
+      password: String(formData.get("password") ?? ""),
+      rememberMe: formData.get("rememberMe") === "on"
+    };
+
+    try {
+      const response = await apiRequest<{
+        accessToken: string;
+        refreshToken: string;
+        user: { role: string };
+      }>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.data) {
+        throw new Error("Login response missing data");
+      }
+
+      persistAuthSession(response.data.accessToken, response.data.refreshToken);
+      setMessage(response.message ?? "Login successful");
+      router.push(getDashboardPath(response.data.user.role));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="animate-fadeUp">
       <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[var(--accent)]">Login</p>
@@ -9,7 +55,7 @@ export default function LoginPage() {
         Sign in to access incident reporting, emergency alerts, staff coordination, and your role-specific dashboard.
       </p>
 
-      <form className="mt-8 space-y-4 rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-strong)] p-6 shadow-panel">
+      <form onSubmit={handleSubmit} className="mt-8 space-y-4 rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-strong)] p-6 shadow-panel">
         <Field label="Email" name="email" type="email" placeholder="name@example.com" />
         <Field label="Password" name="password" type="password" placeholder="Enter your password" />
 
@@ -23,10 +69,12 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        <button type="submit" className="w-full rounded-full bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:opacity-95">
-          Login to Dashboard
+        <button type="submit" disabled={loading} className="w-full rounded-full bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70">
+          {loading ? "Signing in..." : "Login to Dashboard"}
         </button>
       </form>
+
+      {message ? <p className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">{message}</p> : null}
 
       <p className="mt-6 text-sm text-[var(--muted)]">
         New here? <Link href="/register" className="font-semibold text-[var(--accent)]">Create an account</Link>

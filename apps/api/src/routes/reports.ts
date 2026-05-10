@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { HttpError } from "../lib/http-errors.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
+import { prisma } from "../lib/prisma.js";
+import { reportGenerateSchema } from "@isms/shared";
+import { emitSecurityEvent } from "../lib/socket.js";
 
 export const reportRouter = Router();
 
@@ -14,23 +17,33 @@ reportRouter.get("/summary", requireAuth, (_req, res) => {
   });
 });
 
-reportRouter.post("/generate", requireAuth, requireRole("admin"), (req, res, next) => {
+reportRouter.post("/generate", requireAuth, requireRole("admin"), async (req, res, next) => {
   try {
-    const { title, format } = req.body as Record<string, string>;
+    const parsed = reportGenerateSchema.parse(req.body);
 
-    if (!title || !format) {
-      throw new HttpError(400, "Report title and format are required");
-    }
+    const createdReport = await prisma.report.create({
+      data: {
+        generatedById: req.user!.id,
+        title: parsed.title,
+        format: parsed.format.toUpperCase() as never,
+        fileUrl: `/exports/${Date.now()}.${parsed.format}`
+      }
+    });
 
     res.status(201).json({
       success: true,
       message: "Report generation queued",
       data: {
-        id: `rep_${Date.now()}`,
-        title,
-        format,
-        fileUrl: `/exports/${Date.now()}.${format}`
+        ...createdReport,
+        format: parsed.format
       }
+    });
+
+    emitSecurityEvent("report:generated", {
+      reportId: createdReport.id,
+      title: parsed.title,
+      format: parsed.format,
+      generatedBy: req.user?.fullName
     });
   } catch (error) {
     next(error);

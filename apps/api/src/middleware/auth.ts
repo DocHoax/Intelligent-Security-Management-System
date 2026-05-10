@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { HttpError } from "../lib/http-errors.js";
+import { verifyAccessToken } from "../lib/jwt.js";
 
 export const allowedRoles = ["admin", "security-personnel", "staff", "visitor"] as const;
 
@@ -12,14 +13,20 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   }
 
   const token = authorization.slice(7).trim();
-  const [role = "visitor", id = "demo-user"] = token.split(":");
 
-  req.user = {
-    id,
-    role,
-    email: `${id}@example.com`,
-    fullName: "Demo User"
-  };
+  try {
+    const payload = verifyAccessToken(token);
+
+    req.user = {
+      id: payload.sub,
+      role: payload.role,
+      email: payload.email,
+      fullName: payload.fullName
+    };
+  } catch {
+    next(new HttpError(401, "Invalid or expired token"));
+    return;
+  }
 
   next();
 }

@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { Server } from "socket.io";
 import { app } from "./app.js";
 import { env } from "./lib/env.js";
+import { configureSocketServer } from "./lib/socket.js";
 
 const server = createServer(app);
 
@@ -11,6 +12,8 @@ const io = new Server(server, {
     credentials: true
   }
 });
+
+configureSocketServer(io);
 
 io.on("connection", (socket) => {
   socket.emit("notification", {

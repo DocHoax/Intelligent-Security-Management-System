@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { HttpError } from "../lib/http-errors.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
+import { prisma } from "../lib/prisma.js";
+import { incidentCreateSchema } from "@isms/shared";
+import { emitSecurityEvent } from "../lib/socket.js";
 
 const incidents = [
   {
@@ -46,36 +49,46 @@ incidentRouter.get("/", requireAuth, (req, res) => {
   res.json({ success: true, data: filtered });
 });
 
-incidentRouter.post("/", requireAuth, requireRole("admin", "staff", "visitor"), (req, res, next) => {
+incidentRouter.post("/", requireAuth, requireRole("admin", "staff", "visitor"), async (req, res, next) => {
   try {
-    const { type, title, description, location, priority } = req.body as Record<string, string>;
-
-    if (!type || !title || !description || !location) {
-      throw new HttpError(400, "Incident form is incomplete");
-    }
+    const parsed = incidentCreateSchema.parse(req.body);
+    const createdIncident = await prisma.incident.create({
+      data: {
+        reporterId: req.user!.id,
+        type: parsed.type.toUpperCase().replace(/-/g, "_") as never,
+        title: parsed.title,
+        description: parsed.description,
+        location: parsed.location,
+        priority: parsed.priority.toUpperCase() as never,
+        occurredAt: parsed.occurredAt ? new Date(parsed.occurredAt) : new Date(),
+        status: "OPEN" as never
+      }
+    });
 
     res.status(201).json({
       success: true,
       message: "Incident captured",
       data: {
         incident: {
-          id: `inc_${Date.now()}`,
-          type,
-          title,
-          description,
-          location,
-          priority: priority ?? "medium",
-          status: "open",
+          ...createdIncident,
           createdBy: req.user?.fullName ?? req.user?.email ?? "Unknown"
         }
       }
+    });
+
+    emitSecurityEvent("incident:created", {
+      incidentId: createdIncident.id,
+      type: parsed.type,
+      priority: parsed.priority,
+      reporterId: req.user?.id,
+      reporterName: req.user?.fullName
     });
   } catch (error) {
     next(error);
   }
 });
 
-incidentRouter.patch("/:incidentId/status", requireAuth, requireRole("admin", "security-personnel"), (req, res, next) => {
+incidentRouter.patch("/:incidentId/status", requireAuth, requireRole("admin", "security-personnel"), async (req, res, next) => {
   try {
     const { incidentId } = req.params;
     const { status } = req.body as Record<string, string>;
@@ -83,6 +96,20 @@ incidentRouter.patch("/:incidentId/status", requireAuth, requireRole("admin", "s
     if (!status) {
       throw new HttpError(400, "Status is required");
     }
+
+    await prisma.incident.update({
+      where: { id: incidentId },
+      data: {
+        status: status.toUpperCase().replace(/-/g, "_") as never,
+        assignedToId: req.user?.id ?? undefined
+      }
+    });
+
+    emitSecurityEvent("incident:updated", {
+      incidentId,
+      status,
+      updatedBy: req.user?.fullName ?? "System"
+    });
 
     res.json({
       success: true,
