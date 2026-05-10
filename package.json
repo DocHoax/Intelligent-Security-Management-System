@@ -1,0 +1,20 @@
+{
+  "name": "intelligent-security-management-system",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace apps/web run dev",
+    "dev:api": "npm --workspace apps/api run dev",
+    "dev": "concurrently -n web,api \"npm run dev:web\" \"npm run dev:api\"",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces",
+    "db:generate": "npm --workspace apps/api run db:generate",
+    "db:push": "npm --workspace apps/api run db:push"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

@@ -1,0 +1,266 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleName {
+  ADMIN
+  SECURITY_PERSONNEL
+  STAFF
+  VISITOR
+}
+
+enum IncidentType {
+  THEFT
+  FIRE
+  SUSPICIOUS_ACTIVITY
+  VIOLENCE
+  MEDICAL_EMERGENCY
+  UNAUTHORIZED_ACCESS
+}
+
+enum IncidentPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  OPEN
+  IN_REVIEW
+  ASSIGNED
+  RESOLVED
+  CLOSED
+}
+
+enum AlertStatus {
+  PENDING
+  ACKNOWLEDGED
+  BROADCASTED
+  RESOLVED
+}
+
+enum VisitorStatus {
+  PENDING
+  CHECKED_IN
+  CHECKED_OUT
+  REJECTED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  WEB_SOCKET
+}
+
+enum ReportFormat {
+  PDF
+  EXCEL
+  CSV
+}
+
+enum MessageKind {
+  CHAT
+  ANNOUNCEMENT
+  SYSTEM
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  ASSIGN
+  APPROVE
+  CHECK_IN
+  CHECK_OUT
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        RoleName @unique
+  description String?
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model User {
+  id                String      @id @default(cuid())
+  fullName          String
+  email             String      @unique
+  phoneNumber       String?
+  passwordHash      String
+  roleId            String
+  role              Role        @relation(fields: [roleId], references: [id])
+  status            String      @default("active")
+  emailVerifiedAt   DateTime?
+  rememberToken     String?
+  otpHash           String?
+  otpExpiresAt      DateTime?
+  profileImageUrl   String?
+  sessions          Session[]
+  incidentsReported Incident[]   @relation("IncidentReporter")
+  incidentsAssigned Incident[]   @relation("IncidentAssignee")
+  createdEmergencyAlerts EmergencyAlert[] @relation("EmergencyAlertCreatedBy")
+  acknowledgedEmergencyAlerts EmergencyAlert[] @relation("EmergencyAlertAcknowledgedBy")
+  notifications     Notification[]
+  messagesSent      Message[]    @relation("MessageSender")
+  messagesReceived  Message[]    @relation("MessageRecipient")
+  reportsGenerated  Report[]
+  auditLogs         AuditLog[]
+  visitorRecords    Visitor[]    @relation("VisitorHost")
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
+model Session {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String
+  tokenFamily      String?
+  expiresAt        DateTime
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime @default(now())
+}
+
+model Incident {
+  id               String           @id @default(cuid())
+  reporterId       String
+  reporter         User             @relation("IncidentReporter", fields: [reporterId], references: [id])
+  assignedToId     String?
+  assignedTo       User?            @relation("IncidentAssignee", fields: [assignedToId], references: [id])
+  type             IncidentType
+  title            String
+  description      String
+  location         String
+  priority         IncidentPriority @default(MEDIUM)
+  status           IncidentStatus   @default(OPEN)
+  occurredAt       DateTime
+  attachmentUrl    String?
+  evidenceType     String?
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model EmergencyAlert {
+  id               String        @id @default(cuid())
+  createdById      String
+  createdBy        User          @relation("EmergencyAlertCreatedBy", fields: [createdById], references: [id])
+  title            String
+  message          String
+  location         String?
+  status           AlertStatus   @default(PENDING)
+  panicLevel       Int           @default(1)
+  acknowledgedById String?
+  acknowledgedBy   User?         @relation("EmergencyAlertAcknowledgedBy", fields: [acknowledgedById], references: [id])
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model Visitor {
+  id            String        @id @default(cuid())
+  fullName      String
+  phoneNumber   String?
+  email         String?
+  hostUserId    String?
+  hostUser      User?         @relation("VisitorHost", fields: [hostUserId], references: [id])
+  hostName      String
+  purpose       String
+  qrCode        String?
+  checkInAt     DateTime?
+  checkOutAt    DateTime?
+  status        VisitorStatus @default(PENDING)
+  badgeNumber   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model SecurityStaff {
+  id              String   @id @default(cuid())
+  userId          String?  @unique
+  user            User?    @relation(fields: [userId], references: [id])
+  fullName        String
+  rank            String
+  phoneNumber     String?
+  assignedZone    String?
+  dutyShift       String?
+  status          String   @default("active")
+  attendanceCount Int      @default(0)
+  performanceScore Int     @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Notification {
+  id             String             @id @default(cuid())
+  userId         String?
+  user           User?              @relation(fields: [userId], references: [id])
+  incidentId     String?
+  incident       Incident?          @relation(fields: [incidentId], references: [id])
+  title          String
+  message        String
+  channel        NotificationChannel @default(IN_APP)
+  readAt         DateTime?
+  metadata       Json?
+  createdAt      DateTime           @default(now())
+}
+
+model Report {
+  id            String        @id @default(cuid())
+  generatedById  String
+  generatedBy    User          @relation(fields: [generatedById], references: [id])
+  title         String
+  format        ReportFormat
+  fileUrl       String?
+  filters       Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Message {
+  id           String      @id @default(cuid())
+  senderId     String
+  sender       User        @relation("MessageSender", fields: [senderId], references: [id])
+  recipientId  String?
+  recipient    User?       @relation("MessageRecipient", fields: [recipientId], references: [id])
+  kind         MessageKind @default(CHAT)
+  content      String
+  threadId     String?
+  isRead       Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+}
+
+model CctvLog {
+  id             String   @id @default(cuid())
+  cameraName     String
+  activityType   String
+  motionDetected Boolean  @default(false)
+  confidence     Float    @default(0)
+  snapshotUrl    String?
+  capturedAt     DateTime @default(now())
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  actorId     String?
+  actor       User?       @relation(fields: [actorId], references: [id])
+  action      AuditAction
+  entityType  String
+  entityId    String
+  metadata    Json?
+  ipAddress   String?
+  createdAt   DateTime    @default(now())
+}
