@@ -117,6 +117,7 @@ model User {
   messagesReceived  Message[]    @relation("MessageRecipient")
   reportsGenerated  Report[]
   auditLogs         AuditLog[]
+  securityStaff     SecurityStaff?
   visitorRecords    Visitor[]    @relation("VisitorHost")
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
@@ -150,7 +151,6 @@ model Incident {
   attachmentUrl    String?
   evidenceType     String?
   notifications    Notification[]
-  auditLogs        AuditLog[]
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 }
