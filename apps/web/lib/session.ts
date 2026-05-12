@@ -1,4 +1,5 @@
-import { dashboardRoutes, roles } from "@isms/shared";
+import { dashboardRoutes } from "@isms/shared/constants";
+import { roles } from "@isms/shared/constants";
 
 export type AuthRole = (typeof roles)[number];
 

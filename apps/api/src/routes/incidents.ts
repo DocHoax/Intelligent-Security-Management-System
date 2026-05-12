@@ -6,6 +6,7 @@ import { incidentCreateSchema } from "@isms/shared";
 import { emitSecurityEvent } from "../lib/socket.js";
 import { logAudit } from "../lib/audit.js";
 import { buildEvidenceUrl, incidentEvidenceUpload } from "../lib/uploads.js";
+import { normalizeIncidentStatus } from "../lib/incidents.js";
 
 const incidents = [
   {
@@ -114,7 +115,7 @@ incidentRouter.patch("/:incidentId/status", requireAuth, requireRole("admin", "s
     await prisma.incident.update({
       where: { id: incidentId },
       data: {
-        status: status.toUpperCase().replace(/-/g, "_") as never,
+        status: normalizeIncidentStatus(status) as never,
         assignedToId: req.user?.id ?? undefined
       }
     });
